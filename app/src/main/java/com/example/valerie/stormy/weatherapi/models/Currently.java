@@ -33,5 +33,23 @@ public class Currently {
         return mIcon;
     }
 
+    @SerializedName("precipProbability")
+    private double mPrecipProbablilty;
+    public double getPrecipProbablilty() {
+        return mPrecipProbablilty;
+    }
+
+    @SerializedName("temperature")
+    private double mTemperature;
+    public double getTemperature() {
+        return mTemperature;
+    }
+
+    @SerializedName("humidity")
+    private double mHumidity;
+    public double getHumidity() {
+        return mHumidity;
+    }
+
 
 }

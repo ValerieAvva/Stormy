@@ -7,24 +7,17 @@ import android.net.NetworkInfo;
 import android.support.v7.app.ActionBarActivity;
 import android.os.Bundle;
 import android.util.Log;
-import android.view.Menu;
-import android.view.MenuItem;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.squareup.okhttp.Call;
-import com.squareup.okhttp.Callback;
-import com.squareup.okhttp.OkHttpClient;
-import com.squareup.okhttp.Request;
-import com.squareup.okhttp.Response;
-
-import org.json.JSONException;
-import org.json.JSONObject;
-
-import java.io.IOException;
+import com.example.valerie.stormy.bus.BusProvider;
+import com.example.valerie.stormy.ottoevents.RequestWeatherEvent;
+import com.example.valerie.stormy.weatherapi.models.Forecast;
+import com.squareup.otto.Bus;
+import com.squareup.otto.Subscribe;
 
 import butterknife.ButterKnife;
 import butterknife.InjectView;
@@ -33,15 +26,18 @@ import butterknife.InjectView;
 public class MainActivity extends ActionBarActivity {
 
     public static final String TAG = MainActivity.class.getSimpleName();
+    private Forecast mForecast;
+    private Bus mBus;
 
-    private CurrentWeather mCurrentWeather;
+    private final double LATITUDE = 33.7483;
+    private final double LONGITUDE = -84.3911;
 
     @InjectView(R.id.timeLabel)
-    private TextView mTimeLabel;
+    TextView mTimeLabel;
     @InjectView(R.id.temperatureLabel)
-    private TextView mTemperatureLabel;
+    TextView mTemperatureLabel;
     @InjectView(R.id.humidityValue)
-    private TextView mHumidityValue;
+    TextView mHumidityValue;
     @InjectView(R.id.precipValue) TextView mPrecipValue;
     @InjectView(R.id.summaryLabel) TextView mSummaryLabel;
     @InjectView(R.id.iconImageView) ImageView mIconImageView;
@@ -54,81 +50,28 @@ public class MainActivity extends ActionBarActivity {
         setContentView(R.layout.activity_main);
         ButterKnife.inject(this);
 
+        mBus = BusProvider.getInstance();
+        mBus.register(this);
+
         mProgressBar.setVisibility(View.INVISIBLE);
-
-        final double latitude = 33.7483;
-        final double longitude = -84.3911;
-
         mRefreshImageView.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                getForecast(latitude,longitude);
+                getForecast(LATITUDE, LONGITUDE);
             }
         });
 
-        getForecast(latitude,longitude);
+        getForecast(LATITUDE, LONGITUDE);
         Log.d(TAG, "Main UI code is running!");
-
 
     }
 
     private void getForecast(double latitude, double longitude) {
-        String apiKey = "336c145901f19fa02c0324ed0d179514";
-        String forecastUrl = "https://api.forecast.io/forecast/"
-                + apiKey + "/" + latitude + "," + longitude;
 
         if (isNetworkAvailable()) {
             toggleRefresh();
 
-            OkHttpClient client = new OkHttpClient();
-            Request request = new Request.Builder()
-                    .url(forecastUrl)
-                    .build();
-
-            Call call = client.newCall(request);
-            call.enqueue(new Callback() {
-                @Override
-                public void onFailure(Request request, IOException e) {
-                    runOnUiThread((new Runnable() {
-                        @Override
-                        public void run() {
-                            toggleRefresh();
-                        }
-                    }));
-                    alertUserAboutError();
-                }
-
-                @Override
-                public void onResponse(Response response) throws IOException {
-                    runOnUiThread((new Runnable() {
-                        @Override
-                        public void run() {
-                            toggleRefresh();
-                        }
-                    }));
-
-                    try {
-                        String jsonData = response.body().string();
-                        Log.v(TAG, jsonData);
-                        if (response.isSuccessful()) {
-                            mCurrentWeather = getCurrentDetails(jsonData);
-                            runOnUiThread(new Runnable() {
-                                @Override
-                                public void run() {
-                                    updateDisplay();
-                                }
-                            });
-
-                        } else {
-                            alertUserAboutError();
-                        }
-                    } catch (IOException e) {
-                        Log.e(TAG, "Exception caught: ", e);
-                    } catch (JSONException e) {
-                        Log.e(TAG, "Exception caught: ", e);
-                    }
-                }
-            });
+            mBus.post(new RequestWeatherEvent(latitude, longitude));
 
         } else {
             Toast.makeText(this, getString(R.string.network_unavailable_message),
@@ -147,36 +90,21 @@ public class MainActivity extends ActionBarActivity {
 
     }
 
-    private void updateDisplay() {
-        mTemperatureLabel.setText(mCurrentWeather.getTemperature() + "");
-        mTimeLabel.setText("At " + mCurrentWeather.getFormattedTime() + " it will be");
-        mHumidityValue.setText(mCurrentWeather.getHumidity() + "");
-        mPrecipValue.setText(mCurrentWeather.getPrecipChance() + "%");
-        mSummaryLabel.setText(mCurrentWeather.getSummary());
-
-        Drawable drawable = getResources().getDrawable(mCurrentWeather.getIconId());
-        mIconImageView.setImageDrawable(drawable);
+    @Subscribe
+    public void responseWeatherEvent(Forecast forecast) {
+        mForecast = forecast;
+        updateDisplay();
     }
 
-    private CurrentWeather getCurrentDetails(String jsonData) throws JSONException {
-        JSONObject forecast = new JSONObject(jsonData);
-        String timezone = forecast.getString("timezone");
-        Log.i(TAG, "From JSON: " + timezone);
+    private void updateDisplay() {
+        mTemperatureLabel.setText(String.valueOf(mForecast.getCurrently().getTemperature()) + "");
+        mTimeLabel.setText("At " + mForecast.getCurrently().getTime() + " it will be");
+        mHumidityValue.setText(mForecast.getCurrently().getHumidity() + "");
+        mPrecipValue.setText(String.valueOf(mForecast.getCurrently().getPrecipProbablilty()) + "%");
+        mSummaryLabel.setText(mForecast.getCurrently().getSummary());
 
-        JSONObject currently = forecast.getJSONObject("currently");
-
-        CurrentWeather currentWeather = new CurrentWeather();
-        currentWeather.setHumidity(currently.getDouble("humidity"));
-        currentWeather.setTime(currently.getLong("time"));
-        currentWeather.setIcon(currently.getString("icon"));
-        currentWeather.setPrecipChance(currently.getDouble("precipProbability"));
-        currentWeather.setSummary(currently.getString("summary"));
-        currentWeather.setTemperature(currently.getDouble("temperature"));
-        currentWeather.setTimeZone(timezone);
-
-        Log.d(TAG, currentWeather.getFormattedTime());
-
-        return currentWeather;
+        Drawable drawable = getResources().getDrawable(getIconId(mForecast.getCurrently().getIcon()));
+        mIconImageView.setImageDrawable(drawable);
     }
 
     private boolean isNetworkAvailable() {
@@ -193,6 +121,42 @@ public class MainActivity extends ActionBarActivity {
     private void alertUserAboutError() {
         AlertDialogFragment dialog = new AlertDialogFragment();
         dialog.show(getFragmentManager(), "error_dialog");
+    }
+
+    private int getIconId(String icon) {
+        int iconId = R.drawable.clear_day;
+
+        if (icon.equals("clear-day")) {
+            iconId = R.drawable.clear_day;
+        } else if (icon.equals("clear-night")) {
+            iconId = R.drawable.clear_night;
+        }
+        else if (icon.equals("rain")) {
+            iconId = R.drawable.rain;
+        }
+        else if (icon.equals("snow")) {
+            iconId = R.drawable.snow;
+        }
+        else if (icon.equals("sleet")) {
+            iconId = R.drawable.sleet;
+        }
+        else if (icon.equals("wind")) {
+            iconId = R.drawable.wind;
+        }
+        else if (icon.equals("fog")) {
+            iconId = R.drawable.fog;
+        }
+        else if (icon.equals("cloudy")) {
+            iconId = R.drawable.cloudy;
+        }
+        else if (icon.equals("partly-cloudy-day")) {
+            iconId = R.drawable.partly_cloudy;
+        }
+        else if (icon.equals("partly-cloudy-night")) {
+            iconId = R.drawable.cloudy_night;
+        }
+
+        return iconId;
     }
 
 }

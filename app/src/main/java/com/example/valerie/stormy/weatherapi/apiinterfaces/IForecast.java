@@ -1,5 +1,8 @@
 package com.example.valerie.stormy.weatherapi.apiinterfaces;
 
+import com.example.valerie.stormy.weatherapi.models.Forecast;
+
+import retrofit.Callback;
 import retrofit.http.GET;
 import retrofit.http.Path;
 
@@ -10,7 +13,8 @@ public interface IForecast {
 
     @GET("/{api_key}/{latitude},{longitude}")
     void getForecast(@Path("api_key") String apiKey,
-                     @Path("latitude") String latitude,
-                     @Path("longitude") String longitude);
+                     @Path("latitude") double latitude,
+                     @Path("longitude") double longitude,
+                     Callback<Forecast> callback);
 
 }

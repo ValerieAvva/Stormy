@@ -2,8 +2,11 @@ package com.example.valerie.stormy.weatherapi;
 
 import android.content.Context;
 
+import com.example.valerie.stormy.weatherapi.apiinterfaces.IForecast;
+import com.example.valerie.stormy.weatherapi.models.Forecast;
 import com.squareup.okhttp.OkHttpClient;
 
+import retrofit.Callback;
 import retrofit.RestAdapter;
 import retrofit.client.OkClient;
 
@@ -13,7 +16,6 @@ import retrofit.client.OkClient;
 public class WeatherClient {
 
     private static final String API_URL = "https://api.forecast.io/forecast/";
-    private static final String API_KEY = "336c145901f19fa02c0324ed0d179514";
 
     private static WeatherClient mWeatherClient;
     private static RestAdapter mAsyncRestAdapter;
@@ -34,7 +36,8 @@ public class WeatherClient {
         return mWeatherClient;
     }
 
-
-
-
+    public void getForecast(String apiKey, double latitude, double longitude, Callback<Forecast> callback) {
+        IForecast forecast = mAsyncRestAdapter.create(IForecast.class);
+        forecast.getForecast(apiKey, longitude, latitude, callback);
+    }
 }
